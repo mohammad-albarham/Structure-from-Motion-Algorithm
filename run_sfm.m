@@ -216,15 +216,15 @@ end
 figure();
 plotcams(P_all)
 %%
-% Step 5: Optimize the translation vectors
+% Optional: Step 5: Optimize the translation vectors
 
-% Optimization parameters
-mu = 1e-3;
-max_iterations = 100;
-tolerance = 1e-6;
+% % Optimization parameters
+% mu = 1e-3;
+% max_iterations = 100;
+% tolerance = 1e-6;
 
-% Optimize translations
-% [T1_refined, T2_refined, error] = optimize_translations(K, R_abs_i{1}, R_abs_i{2}, T_abs_i{1}, T_abs_i{2}, [X_wc; ones(1,length(X_wc))], x1, x2, mu, max_iterations, tolerance);
+% % Optimize translations
+% [T1_refined, T2_refined, error] = optimize_translations(K, R_abs_i{1}, R_abs_i{2}, T_best{1}, T_best{2}, [X_wc; ones(1,length(X_wc))], x1, x2, mu, max_iterations, tolerance);
 
 
 %% 
