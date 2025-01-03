@@ -1,0 +1,4 @@
+.DS_Store
+data/
+vlfeat-0.9.21-bin/
+*.png
