@@ -2,7 +2,7 @@ function E = enforce_essential(E_approx)
 % ENFORCE_ESSENTIAL Apply the enforce on E
 
 % Apply the SVD on E approximate 
-[U,S,V] = svd( E_approx );
+[U,~,V] = svd( E_approx );
 
 if det(U*V') < 0 
     V = -V; 

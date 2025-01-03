@@ -1,9 +1,12 @@
 function [E_best, indices] = estimate_E_robust(x1, x2, eps, K)
     % Robustly estimates the essential matrix E using RANSAC.
+
+    % x1: 3xN , N: Number of points
+    % x2: 3XN , N: Number of points
     
     % Normalize points
-    x1_normalized = inv(K) * x1;
-    x2_normalized = inv(K) * x2;
+    x1_normalized = K\x1;
+    x2_normalized = K\x2;
 
     % RANSAC parameters
     max_iterations = 10000;
@@ -16,6 +19,7 @@ function [E_best, indices] = estimate_E_robust(x1, x2, eps, K)
     for iter = 1:max_iterations
         % Randomly sample 8 points correspondences
         sample_indices = randperm(num_points, 8);
+
         x1_sample = x1_normalized(:, sample_indices);
         x2_sample = x2_normalized(:, sample_indices);
 
@@ -43,5 +47,6 @@ function [E_best, indices] = estimate_E_robust(x1, x2, eps, K)
     end
 
     fprintf('Best inlier count: %d\n', best_inlier_count);
+    fprintf('Percentage of inliers: %.2f%%\n', 100 * (best_inlier_count) / num_points);
     indices = find(inliers);
 end

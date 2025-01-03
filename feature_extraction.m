@@ -3,8 +3,10 @@ function [x1,x2, desc_X, fA, dA, fB, dB] = feature_extraction(im1,im2)
         % Return a homogenous projections
 
         % Extract the features using SIFT
-        [fA dA] = vl_sift(single(rgb2gray(im1)) );
-        [fB dB] = vl_sift(single(rgb2gray(im2)) );
+        % 1 specifies a threshold for rejecting low-contrast keypoints detected by SIFT.
+
+        [fA dA] = vl_sift(single(rgb2gray(im1)), 'PeakThresh', 1);
+        [fB dB] = vl_sift(single(rgb2gray(im2)), 'PeakThresh', 1);
         
         % Compute the matches
         matches = vl_ubcmatch(dA, dB);

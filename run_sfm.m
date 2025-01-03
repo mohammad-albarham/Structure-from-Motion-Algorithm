@@ -4,7 +4,7 @@
 
 % reset and load data
 % clc; close all;
-% run('C:\Users\pain\Desktop\CV_project\vlfeat-0.9.21-bin\vlfeat-0.9.21\toolbox\vl_setup')
+run('C:\Users\pain\Desktop\CV_project\vlfeat-0.9.21-bin\vlfeat-0.9.21\toolbox\vl_setup')
 % Get dataset info by providing dataset input
 
 % Control random number generator - to get consistant resutls
@@ -22,6 +22,7 @@ N = length(img_names);
 
 % Initialize rotations and translations for relative poses
 R_rel = cell(1, N-1); % Relative rotations, normalised
+T_rel = cell(1, N-1); % Relative translations, normalised
 
 desc_im = cell(1,N); 
 feat_im = cell(1,N);
@@ -46,6 +47,8 @@ for n=1:N-1
     % Step3: Estimate E robust using RANSAC
     % Define the pixel threhold 
     eps = pixel_threshold * 2 / (K(1,1) + K(2,2)); % Normalize threshold
+
+    % e.g: 0.000420430520853354
     
     % Get the estimate_E_robust
     [E_ransac, indices] = estimate_E_robust(x1, x2, eps, K);
@@ -55,7 +58,11 @@ for n=1:N-1
     [X,P] = Cheirality_triangulate(x1,x2, indices,K,E_ransac);
      
     % Save relative pose
-    R_rel{n} = inv(K) * P{2}(1:3, 1:3); % Extract rotation from P2
+    % Extract rotation from P2
+    R_rel{n} = K\P{2}(1:3, 1:3); 
+
+    % Extract translation vector
+    T_rel{n} = K\P{2}(1:3, 4); % Extract relative translation
 
     % Step 5: Visualization
     figure;
@@ -75,7 +82,7 @@ end
 % Step 2: Upgrade to absolute Rotations
 tot = length(R_rel);
 
-P{1} = K* [eye(3), zeros(3, 1)];
+% P{1} = K* [eye(3), zeros(3, 1)];
 
 R_abs_i = cell(1, N);
 R_abs_i{1} = eye(3,3);
@@ -83,6 +90,8 @@ R_abs_i{1} = eye(3,3);
 for k=1:tot
     % Calculate the rotation translation 
     R_abs_i{k+1} = R_rel{1,k} * R_abs_i{k};
+    fprintf('Absolute Rotation R_abs{%d}:\n', i);
+    disp(R_abs_i{k});
 end
 
 %% Step 3: Reconstruct initial 3D points from initial image pair 
@@ -145,48 +154,55 @@ grid on;
 hold off;
 
 
+
 % ------------------------------------------------------------------------
 %%
 % Step 4:
 
 % Establish correspondences between i and 3D points (using desc X),
 % Number of images
-N = length(img_names);
-T_best = cell(1,N);
+% Initialize translation estimates
+T_best = cell(1, N);
+T_best{1} = zeros(3, 1);
 
-T_best{1} = zeros(3,1);
 for n = 1:N-1
-     
-    [matches_2d_3d, ~] = vl_ubcmatch(desc_X, desc_im{n});
+    % Step 1: Establish correspondences using descriptor matching
+    [matches_2d_3d, ~] = vl_ubcmatch(desc_im{n}, desc_X);
 
-    % Get the 2D points correspondences on each images' pair
-    xA = feat_im{n}(1:2 , matches_2d_3d(1 ,:));
+    unique_indices = unique(matches_2d_3d(2, :));
+    disp(['Unique 3D Points: ', num2str(length(unique_indices))]);
+    disp(['Total Matches: ', num2str(size(matches_2d_3d, 2))]);
 
-    %TODO: Solve the problem here
-    x1 = [xA; ones(1,length(xA))];
+    [unique_indices, ia] = unique(matches_2d_3d(2, :), 'stable');
+    filtered_matches = matches_2d_3d(:, ia);
 
-    % Normalize the points
-    xsn1 = inv(K) * x1;
+    % Step 2: Extract 2D points and convert to homogeneous coordinates
+    xA = feat_im{n}(1:2, filtered_matches(1, :));
+    x1 = [xA; ones(1, length(xA))];
+    xsn1 = K \ x1; % Normalize 2D points
 
-    % Use triangulated 3D points
-    X_0_0 = X_wc(1:3, :);
+    % Step 3: Extract 3D points and convert to homogeneous
+    Xs = X_wc(:, filtered_matches(2, :)); % Use pre-computed 3D points
+    Xsn = [Xs; ones(1, length(Xs))];
 
-    Xs = inv(K) * X_0_0(:,matches_2d_3d(1 ,:));   % 3D points (Nx3)
-    Xsn = [Xs; ones(1,length(Xs))];
-        
-    translation_threshold = 3 * pixel_threshold / K(1,1);
-  
-    % The normalized coordinates is used here 
-    T_best{n+1} = estimate_T_robust(xsn1, Xsn, R_abs_i{n}, 0.5, zeros(1,3), K);
+    % Step 4: Robust estimation of translation
+    translation_threshold = 3 * pixel_threshold / K(1, 1);
 
+    disp("Determinant of R: ")
+    disp(det(R_abs_i{n}))
+
+    % Estimate T using Robust RANSAC + DLT
+    T_best{n+1} = estimate_T_robust(xsn1, Xsn, R_abs_i{n}, translation_threshold, zeros(3, 1));
 end
+
+
 
 %%
 
 P_all = cell(1,N);
 
 for i=1:9 
-    P_all{i} = K * [R_abs_i{i} T_best{i}]
+    P_all{i} = K * [R_abs_i{i} T_best{i}];
 end
 
 figure();
