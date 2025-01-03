@@ -19,7 +19,7 @@ function T_best = estimate_T_robust(xs, Xs, R, inlier_threshold, T_init)
         errors = compute_reprojection_errors(xs, Xs, R, T_candidate);
 
         % Count inliers
-        inliers_candidate = errors < inlier_threshold;
+        inliers_candidate = errors.^2 < inlier_threshold.^2;
         num_inliers = sum(inliers_candidate);
 
         % Update best model

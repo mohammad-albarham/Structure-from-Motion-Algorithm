@@ -17,6 +17,8 @@ rng(42)
 %%
 % Step 1: Calculate the relative Orientation
 
+disp("Step 1: Calculate the relative Orientation")
+
 % Number of images
 N = length(img_names);
 
@@ -80,6 +82,9 @@ end
 
 %%
 % Step 2: Upgrade to absolute Rotations
+disp("Step 2: Upgrade to absolute Rotations")
+
+
 tot = length(R_rel);
 
 % P{1} = K* [eye(3), zeros(3, 1)];
@@ -95,6 +100,7 @@ for k=1:tot
 end
 
 %% Step 3: Reconstruct initial 3D points from initial image pair 
+disp("Step 3: Reconstruct initial 3D points from initial image pair")
 
 % get the 3D points from the suggested pair 
 % Load the images 
@@ -158,6 +164,7 @@ hold off;
 % ------------------------------------------------------------------------
 %%
 % Step 4:
+disp("Step 4: T robust estimation")
 
 % Establish correspondences between i and 3D points (using desc X),
 % Number of images
@@ -198,17 +205,16 @@ end
 
 
 %%
+disp("Step 5: Plot the cameras")
 
 P_all = cell(1,N);
 
-for i=1:9 
+for i=1:N 
     P_all{i} = K * [R_abs_i{i} T_best{i}];
 end
 
 figure();
 plotcams(P_all)
-
-
 %%
 % Step 5: Optimize the translation vectors
 
@@ -224,6 +230,7 @@ tolerance = 1e-6;
 %% 
 % Step 6: Triangulate points for all pairs (i, i + 1) and visualize 3D points + cameras
 
+disp("% Step 6: Triangulate points for all pairs (i, i + 1) and visualize 3D points + cameras")
 X_all = [];  % To store all 3D points
 
 for i=1:N-1
@@ -241,25 +248,24 @@ for i=1:N-1
     x2 = [xB; ones(1,length(xB))];
 
     % Normalize the points
-    x1_n = inv(K) * x1;
-    x2_n = inv(K) * x2;
+    x1_n = K\x1;
+    x2_n = K\x2;
 
     % Keep only the inliers 
     x1_n_in = x1_n(:, inliers_indices{n});
     x2_n_in = x2_n(:, inliers_indices{n});
-    
 
      % Triangulate the 3D points using the cameras and the 2D points 
 
-    X = triangulate_3D_point_DLT(x1_n_in, x2_n_in, P_all{i}, P_all{i+1});
-    
+    X = triangulate_3D_point_DLT(x1_n_in, x2_n_in, inv(K)* P_all{i},  inv(K) * P_all{i+1});
+    % X = K * X(1:3,:);
     figure();
     % Plot 3D points
     plot3(X(1, :), X(2, :), X(3, :), '.', 'MarkerSize', 10);
     hold on;
     
     % % Plot cameras
-    % plotcams(P_all);
+    plotcams(P_all);
     
     % Labels and axes
     xlabel('X'); ylabel('Y'); zlabel('Z');
