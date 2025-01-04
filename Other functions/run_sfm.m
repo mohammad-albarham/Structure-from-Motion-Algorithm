@@ -296,7 +296,7 @@ for n = 1:N-1
 
 
     % Normalize it to avoid scale issues
-    T_best{n+1} = T_best{n+1} / norm(T_best{n+1});
+    % T_best{n+1} = T_best{n+1} / norm(T_best{n+1});
 end
 
 %%
@@ -360,6 +360,12 @@ for i=1:N-1
     grid on;
     hold off;
 
+
+end
+
+%%
+
+% end
     % % Levenberg Marquardt Method
     % 
     % % Compute initial reprojection error
@@ -381,11 +387,6 @@ for i=1:N-1
     % 
     % disp(['After Total sum Error: ', num2str(sum(total_error_after))]);
     % disp(['After Total median Error: ', num2str(median(total_error_after / size(X_refined, 2)))]);
-
-end
-
-
-% end
 
 
 %% Feature Extraction Function %%
