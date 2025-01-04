@@ -25,3 +25,6 @@ function [x1,x2, desc_X, fA, dA, fB, dB] = feature_extraction(im1,im2)
         desc_X = dA(:, matches(1, :)); 
        
 end
+
+%%
+

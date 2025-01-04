@@ -105,7 +105,7 @@ function [r, J] = ComputeJacobianAndResidual(K, R1, R2, T1, T2, X, x1, x2)
     J2 = K * R2; % Partial derivatives w.r.t T2
 
     % Final Jacobian (4x6)
-    J = [J1, zeros(2, 3); zeros(2, 3), J2];
+    J = [J1;J2];
 end
 
 function delta = ComputeUpdate(r, J, mu)

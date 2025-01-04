@@ -4,7 +4,7 @@ function T_best = estimate_T_robust(xs, Xs, R, inlier_threshold, T_init)
     % Initialization
     max_inliers = 0;
     N = size(xs, 2);
-    iterations = 5000; % RANSAC iterations
+    iterations = 10000; % RANSAC iterations
 
     for i = 1:iterations
         % Sample minimal points (2 points for translation)
@@ -32,7 +32,7 @@ function T_best = estimate_T_robust(xs, Xs, R, inlier_threshold, T_init)
 
     % Refine with inliers
     if max_inliers > 0
-        T_best = T_best; % estimate_translation_DLT(xs(:, inliers), Xs(:, inliers), R);
+        T_best = estimate_translation_DLT(xs(:, inliers), Xs(:, inliers), R);
     else
         warning('No inliers found. Returning initial translation.');
         T_best = T_init;
