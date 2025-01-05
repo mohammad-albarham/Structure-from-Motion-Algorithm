@@ -27,10 +27,17 @@
 % dataset_num = p.Results.dataset_num;
 % plot_initial_rel_3D = p.Results.plot_initial_rel_3D; % Optional flag
 % plot_initial_rel_3D_pair = p.Results.plot_initial_rel_3D_pair; % Optional flag
-
-dataset_num = 5;
+close all; clear; clc
+dataset_num = 1;
 plot_initial_rel_3D = true; 
 plot_initial_rel_3D_pair = true;
+
+global enableInfo;
+global info_level;
+
+enableInfo = true; % Enable or disable info globally
+info_level = 2;
+
 % reset and load data
 % clc; close all;
 % Add the vl_toolbox to be accessible in the current directory
@@ -41,7 +48,9 @@ run('C:\Users\pain\Desktop\CV_project\vlfeat-0.9.21-bin\vlfeat-0.9.21\toolbox\vl
 rng(42)
 
 %% Load the dataset data information
-disp("Step 0: Load the dataset data information")
+% disp("Step 0: Load the dataset data information")
+info("Step 0: Load the dataset data information")
+
 
 % Extract dataset information
 [K, img_names, init_pair, pixel_threshold] = get_dataset_info(dataset_num);
@@ -52,7 +61,10 @@ disp("Step 0: Load the dataset data information")
 % It also performs feature extraction, matches features, estimates the essential
 % matrix using RANSAC, and triangulates 3D points.
 
-disp("Step 1: Calculate the relative Rotation between image pairs")
+% disp("Step 1: Calculate the relative Rotation between image pairs")
+
+
+info("Step 1: Calculate the relative Rotation between image pairs")
 
 % Number of images in the dataset
 N = length(img_names);
@@ -99,7 +111,7 @@ for n=1:N-1
     %%% Estimate the Essential Matrix using RANSAC %%%
   
     % Define the pixel threhold
-    eps = pixel_threshold * 2 / (K(1,1) + K(2,2)); % Normalize threshold
+    eps = 3 * 2 / (K(1,1) + K(2,2)); % Normalize threshold
 
     % e.g: 0.000420430520853354
 
@@ -142,7 +154,10 @@ end
 
 
 %% Step 2: Upgrade to Absolute Rotations
-disp("Step 2: Upgrade to Absolute Rotations")
+% disp("Step 2: Upgrade to Absolute Rotations")
+
+info("Step 2: Upgrade to Absolute Rotations")
+
 
 % Get the total number of relative rotations
 num_rel_rotations = length(R_rel); % Total relative rotations (N-1)
@@ -157,22 +172,30 @@ for k = 1:num_rel_rotations
     R_abs_i{k+1} = R_rel{k} * R_abs_i{k}; % Accumulate rotations
 
     % Display progress for debugging
-    fprintf('Computed Absolute Rotation (Camera %d):\n', k+1);
+    % fprintf('Computed Absolute Rotation (Camera %d):\n', k+1);
+    info("Computed Absolute Rotation (Camera %d):\n",k+1);
     disp(R_abs_i{k+1});
 end
 
 % Final output
-disp("Absolute Rotations Computed for all Cameras!");
+% disp("Absolute Rotations Computed for all Cameras!");
+info("Absolute Rotations Computed for all Cameras!");
+
 
 % Verify orthogonality (R * R' = I)
-fprintf('\nVerifying Orthogonality of Rotations:\n');
+% fprintf('\nVerifying Orthogonality of Rotations:\n');
+info("\nVerifying Orthogonality of Rotations:\n");
+
 for k = 1:N 
     error_orthogonality = norm(R_abs_i{k} * R_abs_i{k}' - eye(3)); % Should be close to 0 using Euclidean norm
-    fprintf('Camera %d Orthogonality Error: %.6f\n', k, error_orthogonality);
+    info("Camera %d Orthogonality Error: %.6f\n", k, error_orthogonality);
 end
 
 %% Step 3: Reconstruct initial 3D points from initial image pair
-disp("Step 3: Reconstruct initial 3D points from initial image pair")
+% disp("Step 3: Reconstruct initial 3D points from initial image pair")
+
+info("Step 3: Reconstruct initial 3D points from initial image pair:\n");
+
 
 % get the 3D points from the suggested pair
 % Load the images
@@ -246,7 +269,9 @@ end
 
 %%
 % Step 4:
-disp("Step 4: T robust estimation")
+% disp("Step 4: T robust estimation")
+info("Step 4: T robust estimation:\n");
+
 
 % Establish correspondences between i and 3D points (using desc X),
 % Number of images
@@ -269,7 +294,10 @@ for n = 1:N-1
     disp(['Unique 3D Points: ', num2str(length(unique_indices))]);
     disp(['Total Matches: ', num2str(size(matches_2d_3d, 2))]);
 
-    fprintf('Percentage of unique matches : %.2f%%\n:  ', 100 * length(unique_indices) / size(matches_2d_3d, 2))
+    % % fprintf('Percentage of unique matches : %.2f%%\n:  ', 100 * length(unique_indices) / size(matches_2d_3d, 2));
+    
+    info("Percentage of unique matches : %.2f%%\n:  ", 100 * length(unique_indices) / size(matches_2d_3d, 2));
+
 
     [~, ia] = unique(matches_2d_3d(2, :), 'stable');
     filtered_matches = matches_2d_3d(:, ia);
@@ -300,7 +328,10 @@ for n = 1:N-1
 end
 
 %%
-disp("Step 5: Plot the cameras")
+% disp("Step 5: Plot the cameras")
+
+info("Step 5: Plot the cameras: \n:  ");
+
 
 P_all = cell(1,N);
 
@@ -312,11 +343,16 @@ figure();
 plotcams(P_all)
 title('Camera Poses Visualization');
 
-disp("Cameras plotted successfully!");
+% disp("Cameras plotted successfully!");
+info("Cameras plotted successfully!: \n:  ", 100 * length(unique_indices) / size(matches_2d_3d, 2));
+
+
 %%
 % Step 6: Triangulate points for all pairs (i, i + 1) and visualize 3D points + cameras
 
-disp("% Step 6: Triangulate points for all pairs (i, i + 1) and visualize 3D points + cameras")
+% disp("% Step 6: Triangulate points for all pairs (i, i + 1) and visualize 3D points + cameras")
+info("Step 6: Triangulate points for all pairs (i, i + 1) and visualize 3D points + cameras: \n:  ");
+
 X_all = [];  % To store all 3D points
 
 for i=1:N-1
@@ -345,6 +381,12 @@ for i=1:N-1
 
     X = triangulate_3D_point_DLT(x1_h_in, x2_h_in, P_all{i},  P_all{i+1});
     
+    % Levenberg Marquardt Method
+    
+    % Normalize the points
+    x1_h_in = x1_h(:, inliers_indices{n});
+    x2_h_in = x2_h(:, inliers_indices{n});
+
     figure();
     % Plot 3D points
     plot3(X(1, :), X(2, :), X(3, :), '.', 'MarkerSize', 10);
@@ -355,38 +397,18 @@ for i=1:N-1
 
     % Labels and axes
     xlabel('X'); ylabel('Y'); zlabel('Z');
-    title('3D Points and Cameras');
+    title(sprintf('3D Points and Cameras before refinment - Iteration %d', i));
+    
     axis equal;
     grid on;
     hold off;
 
 
+
 end
 
 %%
-% Best Results
-% end
-    % % Levenberg Marquardt Method
-    % 
-    % % Compute initial reprojection error
-    % total_error_before = ComputeTotalError(P_all{i},  P_all{i+1}, X, x1_n_in, x2_n_in);
-    % 
-    % disp(['Initial Total sum Error: ', num2str(sum(total_error_before))]);
-    % disp(['Initial Total median Error: ', num2str(median(total_error_before / size(X, 2)))]);
-    % 
-    % % Parameters for LM optimization
-    % mu = 1e-1; % Damping factor
-    % max_iterations = 10; % Maximum LM iterations
-    % tolerance = 1e-6; % Convergence tolerance
-    % 
-    % % Run Levenberg-Marquardt optimization
-    % [X_refined, accumulated_error] = LevenbergMarquardt(P_all{i},  P_all{i+1}, X, x1_n_in, x2_n_in, mu, max_iterations, tolerance);
-    % 
-    % % Compute the final reprojection error
-    % total_error_after = ComputeTotalError(P_all{i},  P_all{i+1}, X_refined, x1_n_in, x2_n_in);
-    % 
-    % disp(['After Total sum Error: ', num2str(sum(total_error_after))]);
-    % disp(['After Total median Error: ', num2str(median(total_error_after / size(X_refined, 2)))]);
+
 
 
 %% Feature Extraction Function %%
@@ -433,6 +455,8 @@ function [E_best, indices] = estimate_E_robust(x1, x2, eps, K)
     % x1: 3xN , N: Number of points
     % x2: 3XN , N: Number of points
     
+    global enableInfo;
+
     % Normalize points
     x1_h_n = K\x1;
     x2_h_n = K\x2;
@@ -479,7 +503,9 @@ function [E_best, indices] = estimate_E_robust(x1, x2, eps, K)
     end
 
     % fprintf('Best inlier count: %d\n', best_inlier_count);
-    fprintf('Percentage of inliers: %.2f%%\n', 100 * (best_inlier_count) / num_points);
+    % fprintf('Percentage of inliers: %.2f%%\n', 100 * (best_inlier_count) / num_points);
+
+    info("Percentage of inliers: %.2f \n:  ", 100 * (best_inlier_count) / num_points);
 
 
     % Return the indices of the inliners
@@ -540,7 +566,9 @@ end
 rank_E_approx = rank(E_approx);
 
 % Display the rank
-disp(['Rank of E_approx: ', num2str(rank_E_approx)]);
+% disp(['Rank of E_approx: ', num2str(rank_E_approx)]);
+
+info("Rank of E_approx: %.2f \n:  ", 2, rank_E_approx);
 
 
 % Creates a valid essential matrix from an approximate solution 
@@ -551,7 +579,8 @@ E = U * diag ([1 1 0])* V';
 rank_E = rank(E);
 
 % Display the rank
-disp(['Rank of E: ', num2str(rank_E)]);
+% disp(['Rank of E: ', num2str(rank_E)]);
+info("Rank of E: %.2f \n:  ", 2, rank_E);
 
 
 end
@@ -813,9 +842,9 @@ function T = estimate_translation_DLT(x, X, R)
     T = T_lambda(1:3);
 
     % Compute residual error
-    residual = norm(A * T_lambda - b); % ||A * T_lambda - b||
-    disp('Residual Error:');
-    disp(residual);
+    % residual = norm(A * T_lambda - b); % ||A * T_lambda - b||
+    % disp('Residual Error:');
+    % disp(residual);
 
     % Flip sign if necessary based on direction consistency
     if dot(T, mean(X(1:3, :), 2)) < 0
@@ -851,6 +880,155 @@ function errors = compute_reprojection_error_P(P, X, x)
     % Compute Euclidean distance error
     errors = sqrt(sum((x_proj(1:2, :) - x(1:2, :)).^2, 1)); % Pixel errors
 end
+
+
+%% LM Helper Functions
+function [X_refined, accumulated_error] = LevenbergMarquardt(P1, P2, X, x1, x2, mu, max_iterations, tolerance)
+    % Levenberg-Marquardt optimization for 3D point refinement
+
+    % Temporary variable for updates
+    X_temp = X;
+    accumulated_error = zeros(1, max_iterations); % For plotting error
+
+    for iter = 1:max_iterations
+        % disp(['Iteration Index: ', num2str(iter)]);
+
+        % Compute total error before update
+        total_error_before = 0;
+        for j = 1:size(X_temp, 2)
+            [err, ~] = ComputeReprojectionError(P1, P2, X_temp(:, j), x1(:, j), x2(:, j));
+            total_error_before = total_error_before + err;
+        end
+        accumulated_error(iter) = total_error_before; % Store error for plotting
+        % disp(['Total Error Before: ', num2str(total_error_before)]);
+
+        % Update 3D points
+        for j = 1:size(X_temp, 2)
+            % Compute residual and Jacobian for point Xj
+            [r, J] = LinearizeReprojErr(P1, P2, X_temp(:, j), x1(:, j), x2(:, j));
+
+            % Compute LM update
+            delta_Xj = ComputeUpdate(r, J, mu);
+
+            % Update 3D point (temporarily)
+            X_test = pflat(X_temp(:, j) + delta_Xj);
+
+            % Compute individual errors
+            [err_before, ~] = ComputeReprojectionError(P1, P2, X_temp(:, j), x1(:, j), x2(:, j));
+            [err_after, ~] = ComputeReprojectionError(P1, P2, X_test, x1(:, j), x2(:, j));
+
+            % Apply update if error improves
+            if err_after < err_before
+                X_temp(:, j) = X_test;
+            end
+        end
+
+        % Compute total error after update
+        total_error_after = 0;
+        for j = 1:size(X_temp, 2)
+            [err, ~] = ComputeReprojectionError(P1, P2, X_temp(:, j), x1(:, j), x2(:, j));
+            total_error_after = total_error_after + err;
+        end
+        % disp(['Total Error After: ', num2str(total_error_after)]);
+
+        % Adjust damping factor and check for convergence
+        if total_error_after < total_error_before
+            mu = mu / 2; % Decrease damping factor
+        else
+            mu = mu * 2; % Increase damping factor
+        end
+
+        if abs(total_error_after - total_error_before) < tolerance
+            % disp('Converged!');
+            break;
+        end
+    end
+
+    % Return refined points and accumulated errors
+    X_refined = X_temp;
+end
+
+
+function J = ComputeJacobian(P, Z)
+    % Decompose rows of the camera P
+    P1 = P(1, :);
+    P2 = P(2, :);
+    P3 = P(3, :);
+
+    % Compute Jacobian (2x4)
+    J = [
+        (Z(1) * P3  - Z(3) * P1 ) / Z(3)^2;
+        (Z(2) * P3  - Z(3) * P2 ) / Z(3)^2;
+    ];
+end
+
+
+function [err, res] = ComputeReprojectionError(P1, P2, Xj, x1j, x2j)
+    % Project 3D point into both cameras
+    Z1 = P1 * Xj;
+    Z2 = P2 * Xj;
+
+    % Compute residuals
+    r1 = x1j(1:2) - Z1(1:2) ./ Z1(3); % 2x1
+    r2 = x2j(1:2) - Z2(1:2) ./ Z2(3); % 2x1
+    res = [r1; r2]; % 4x1
+
+    % Compute total reprojection error
+    err = sum(res.^2); % 1x1
+end
+
+
+%%% Confirmed 
+
+
+function total_error = ComputeTotalError(P1, P2, X, x1, x2)
+    % Compute the total reprojection error for all 3D points
+    %
+    % Inputs:
+    %   - P1, P2: Camera projection matrices
+    %   - X: 4xN matrix of 3D points in homogeneous coordinates
+    %   - x1, x2: 3xN matrices of 2D image points in homogeneous coordinates
+    %
+    % Outputs:
+    %   - total_error: The total reprojection error across all points
+
+    total_error = 0; % Initialize total error
+    for j = 1:size(X, 2)
+        [err, ~] = ComputeReprojectionError(P1, P2, X(:, j), x1(:, j), x2(:, j));
+        total_error = total_error + err;
+    end
+end
+
+function delta_Xj = ComputeUpdate(r, J, mu)
+    % Compute normal equations for the update
+    H = J.' * J + mu * eye(size(J, 2)); % Hessian approximation (4x4)
+    g = J.' * r; % Gradient (4x1)
+
+    % Compute the update step
+    delta_Xj = -H \ g; % inv(H)
+% Computes the LM update .
+end
+
+
+function [r, J] = LinearizeReprojErr(P1, P2, Xj, x1j, x2j)
+    % Project 3D point into both cameras
+    Z1 = P1 * Xj;
+    Z2 = P2 * Xj;
+
+    % Compute residuals
+    r1 = x1j(1:2) - Z1(1:2) ./ Z1(3); % 2x1
+    r2 = x2j(1:2) - Z2(1:2) ./ Z2(3); % 2x1
+    r = [r1; r2]; % 4x1
+
+    % Compute Jacobians using chain rule
+    J1 = ComputeJacobian(P1, Z1); % 2x4
+    J2 = ComputeJacobian(P2, Z2); % 2x4
+
+    % Combine Jacobians
+    J = [J1; J2]; % 4x4
+end
+
+
 
 
 %% Other helper functions
@@ -941,35 +1119,53 @@ function validate_E(E)
 % Example:
 % validate_E(E_candidate, x1_h_n_sample, x2_h_n_sample);
 
-    fprintf('\n--- Essential Matrix Validation Start ---\n');
+    % fprintf('\n--- Essential Matrix Validation Start ---\n');
+    info("\n--- Essential Matrix Validation Start ---\n", 2);
 
     % 1. Rank Constraint
     rank_E = rank(E); % Compute rank
-    fprintf('Rank of E: %d (Expected: 2)\n', rank_E);
+    % fprintf('Rank of E: %d (Expected: 2)\n', rank_E);
+
+    info("Rank of E: %d (Expected: 2)\n:  ", 2, rank_E);
+
+
 
     % 2. Singular Value Constraint
     [U, S, V] = svd(E); % SVD
     singular_values = diag(S);
-    fprintf('Singular values of E: [%.6f, %.6f, %.6f]\n', singular_values);
+    % fprintf('Singular values of E: [%.6f, %.6f, %.6f]\n', singular_values);
+
+    info("Singular values of E: [%.6f, %.6f, %.6f]\n", 2, singular_values);
+
 
     if abs(S(1,1) - S(2,2)) < 1e-6 && S(3,3) < 1e-6
-        fprintf('Singular value constraint: Satisfied\n');
+        % fprintf('Singular value constraint: Satisfied\n');
+        info("Singular value constraint: Satisfied\n", 2);
+
     else
-        fprintf('Singular value constraint: Not satisfied\n');
+        % fprintf('Singular value constraint: Not satisfied\n');
+        info("Singular value constraint: Not satisfied\n", 2);
+
     end
 
     % 4. Determinant Check
     det_E = det(E); % Compute determinant
-    fprintf('Determinant of E: %.6f (Expected: Close to 0)\n', det_E);
+    % fprintf('Determinant of E: %.6f (Expected: Close to 0)\n', det_E);
+    info("Determinant of E: %.6f (Expected: Close to 0)\n", 2, det_E);
+
 
     % Final Assessment
     if rank_E == 2 && abs(S(1,1) - S(2,2)) < 1e-6 && S(3,3) < 1e-6 && abs(det_E) < 1e-6
-        fprintf('Validation Status: PASS - Essential matrix is valid.\n');
+        % fprintf('Validation Status: PASS - Essential matrix is valid.\n');
+        info("Validation Status: PASS - Essential matrix is valid.\n", 2);
+
     else
-        fprintf('Validation Status: FAIL - Essential matrix is invalid.\n');
+        % fprintf('Validation Status: FAIL - Essential matrix is invalid.\n');
+        info("Validation Status: FAIL - Essential matrix is invalid.\n", 2);
     end
 
-    fprintf('\n--- Essential Matrix Validation End ---\n');
+    % fprintf('\n--- Essential Matrix Validation End ---\n');
+    info("\n--- Essential Matrix Validation End ---\n", 2);
 
 end
 
@@ -1018,4 +1214,44 @@ function validate_camera(P, K)
     
     fprintf('\n--- validate_camera Validation End ---\n');
 
+end
+
+%%
+
+function info(message, varargin)
+% INFO - Custom function to display hierarchical information messages.
+% Prints messages based on the global info_level and enableInfo settings.
+%
+% Usage:
+%   info('Message')                        % Defaults to Level 1
+%   info('Message', 1)                      % Explicit Level 1
+%   info('Message with %d', 1, 10)          % Level 1 with variables
+%   info('Message with %f', 2, 3.14159)     % Level 2 with variables
+%
+% Global Settings:
+%   - enableInfo: Toggle info messages (true/false).
+%   - info_level: Controls verbosity (1 = only Level 1, 2 = Level 1 and 2).
+
+% Access global variables
+global enableInfo;
+global info_level;
+
+% Set default level to 1 if not explicitly provided
+if nargin < 2 || ~isnumeric(varargin{1}) % Check if level is missing
+    level = 1;               % Default level
+    args = varargin;         % Treat everything else as variables
+else
+    level = varargin{1};     % Extract level
+    args = varargin(2:end);  % Remaining are variables
+end
+
+% Print messages based on levels
+if enableInfo
+    % Print if the current level is less than or equal to the global level
+    if level <= info_level
+        fprintf('[INFO][Level %d]: ', level);
+        fprintf(message, args{:}); % Pass additional arguments
+        fprintf('\n');
+    end
+end
 end
