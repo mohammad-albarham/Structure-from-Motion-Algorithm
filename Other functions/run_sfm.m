@@ -29,9 +29,9 @@
 % plot_initial_rel_3D = p.Results.plot_initial_rel_3D; % Optional flag
 % plot_initial_rel_3D_pair = p.Results.plot_initial_rel_3D_pair; % Optional flag
 close all; clear; clc
-dataset_num = 2;
-plot_initial_rel_3D = true; 
-plot_initial_rel_3D_pair = true;
+dataset_num = 15;
+plot_initial_rel_3D = false; 
+plot_initial_rel_3D_pair = false;
 
 global enableInfo;
 global info_level;
@@ -43,7 +43,7 @@ info_level = 1;
 % reset and load data
 % clc; close all;
 % Add the vl_toolbox to be accessible in the current directory
-run('C:\Users\pain\Desktop\CV_project\vlfeat-0.9.21-bin\vlfeat-0.9.21\toolbox\vl_setup')
+run('.\vlfeat-0.9.21-bin\vlfeat-0.9.21\toolbox\vl_setup')
 % Get dataset info by providing dataset input
 
 % Control random number generator - to get consistant resutls
@@ -77,6 +77,7 @@ R_rel = cell(1, N-1); % Relative rotations for each image pair
 % Containers for descriptors and features
 desc_im = cell(1,N);
 feat_im = cell(1,N);
+matches_im = cell(1,N-1);
 
 % Container(cell) for inlier indices after RANSAC
 inliers_indices = cell(1,N-1);
@@ -90,8 +91,9 @@ for n=1:N-1
     im2 = imread(img_names{n+1});
 
     % Extract features and descriptors using SIFT for both images
-    [x1, x2, ~, fA, dA, fB, dB] = feature_extraction(im1, im2);
+    [x1, x2, ~, fA, dA, fB, dB, matches_im{n}] = feature_extraction(im1, im2);
 
+    
     % vectors with dim as
     % 3 x N; 
     % N-> Number of the points
@@ -211,7 +213,7 @@ im2 = imread(img_names{init_pair(2)});
 
 % Pipeline for extracting the featuers,
 
-[x1, x2, desc_X, ~,~,~,~] = feature_extraction(im1, im2);
+[x1, x2, desc_X, ~,~,~,~,~] = feature_extraction(im1, im2);
 
 
 % vectors with dim as
@@ -253,8 +255,8 @@ desc_X_init_pair = desc_X(:,indices);
 X_init_pair_wc = R_abs_i{init_pair(1)}' * X_init_pair(1:3, :);
 X_init_pair_wc_h = toHomogeneous(X_init_pair_wc);
 
-
-if plot_initial_rel_3D_pair
+%%
+if true
     % Step 5: Visualization for initial pair
     figure;
     plot3(X_init_pair_wc_h(1, :), X_init_pair_wc_h(2, :), X_init_pair_wc_h(3, :), ".");
@@ -356,11 +358,11 @@ points_with_colors = cell(N-1, 1);
 
 for n = 1:N-1
     % Compute the matches
-    matches = vl_ubcmatch(desc_im{n}, desc_im{n+1});
-
+    % matches = vl_ubcmatch(desc_im{n}, desc_im{n+1});
+    
     % Get the 2D points correspondences on each images' pair
-    x1 = feat_im{n}(1:2, matches(1, :));
-    x2 = feat_im{n+1}(1:2, matches(2, :));
+    x1 = feat_im{n}(1:2, matches_im{n}(1, :));
+    x2 = feat_im{n+1}(1:2, matches_im{n}(2, :));
 
     % Convert the vectors to homogeneous for this pair of images
     x1_h = toHomogeneous(x1);
@@ -415,6 +417,8 @@ axis equal;
 grid off;
 hold off;
 
+
+
 % Save the structured data
 save('points_with_colors.mat', 'points_with_colors');
 
@@ -426,7 +430,7 @@ saveas(gcf, imagename);  % Save as PNG
 
 
 %% Feature Extraction Function %%
-function [x1,x2, desc_X, fA, dA, fB, dB] = feature_extraction(im1,im2)
+function [x1,x2, desc_X, fA, dA, fB, dB, matches] = feature_extraction(im1,im2)
     % FEATURE_EXTRACTION - Extracts keypoints, descriptors, and matches between two images.
     %
     % Inputs:
@@ -1059,11 +1063,11 @@ function plotcams(P)
     hold on;
     
 
-    %Label all cameras
-    for i = 1:length(P)
-        label = sprintf('Camera %d', i);
-        text(c(1,i), c(2,i), c(3,i), label, 'FontSize', 1, 'Color', 'b');
-    end
+    % %Label all cameras
+    % for i = 1:length(P)
+    %     label = sprintf('Camera %d', i);
+    %     text(c(1,i), c(2,i), c(3,i), label, 'FontSize', 1, 'Color', 'b');
+    % end
     
     % Enhance the plot for clarity
     xlabel('X');
