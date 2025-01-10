@@ -10,7 +10,7 @@
 %       relative 3D points of the initial pair.
 %
 % Example Usage:
-%   run_sfm(2) % Default, no plot
+%   run_sfm(2) % Default, no plot++
 %   run_sfm(2, 'plot_initial_rel_3D', true) % Enable plotting for all
 %   relative pairs
 %   run_sfm(2, 'plot_initial_rel_3D_pair', true) % Enable plotting for the
@@ -29,9 +29,9 @@
 % plot_initial_rel_3D = p.Results.plot_initial_rel_3D; % Optional flag
 % plot_initial_rel_3D_pair = p.Results.plot_initial_rel_3D_pair; % Optional flag
 close all; clear; clc
-dataset_num = 10;
-plot_initial_rel_3D = true; 
-plot_initial_rel_3D_pair = true;
+dataset_num = 1;
+plot_initial_rel_3D = false; 
+plot_initial_rel_3D_pair = false;
 
 global enableInfo;
 global info_level;
@@ -43,7 +43,7 @@ info_level = 1;
 % reset and load data
 % clc; close all;
 % Add the vl_toolbox to be accessible in the current directory
-run('C:\Users\pain\Desktop\CV_project\vlfeat-0.9.21-bin\vlfeat-0.9.21\toolbox\vl_setup')
+run('.\vlfeat-0.9.21-bin\vlfeat-0.9.21\toolbox\vl_setup')
 % Get dataset info by providing dataset input
 
 % Control random number generator - to get consistant resutls
@@ -77,6 +77,7 @@ R_rel = cell(1, N-1); % Relative rotations for each image pair
 % Containers for descriptors and features
 desc_im = cell(1,N);
 feat_im = cell(1,N);
+matches_im = cell(1,N-1);
 
 % Container(cell) for inlier indices after RANSAC
 inliers_indices = cell(1,N-1);
@@ -90,8 +91,9 @@ for n=1:N-1
     im2 = imread(img_names{n+1});
 
     % Extract features and descriptors using SIFT for both images
-    [x1, x2, ~, fA, dA, fB, dB] = feature_extraction(im1, im2);
+    [x1, x2, ~, fA, dA, fB, dB, matches_im{n}] = feature_extraction(im1, im2);
 
+    
     % vectors with dim as
     % 3 x N; 
     % N-> Number of the points
@@ -211,7 +213,7 @@ im2 = imread(img_names{init_pair(2)});
 
 % Pipeline for extracting the featuers,
 
-[x1, x2, desc_X, ~,~,~,~] = feature_extraction(im1, im2);
+[x1, x2, desc_X, ~,~,~,~,~] = feature_extraction(im1, im2);
 
 
 % vectors with dim as
@@ -240,11 +242,7 @@ validate_camera(P_init_pair{1})
 
 validate_camera(P_init_pair{2})
 
-% X_init_pair = removePointsExcessivelyFarAway(X_init_pair);
-% 
-% 
-% new_indices = find(indices < length(X_init_pair));
-% 
+
 % % Save descriptors for future use "Only inliers"
 desc_X_init_pair = desc_X(:,indices);
 
@@ -256,14 +254,11 @@ X_init_pair_wc_h = toHomogeneous(X_init_pair_wc);
 
 if plot_initial_rel_3D_pair
     % Step 5: Visualization for initial pair
-    figure;
+    figure();
     plot3(X_init_pair_wc_h(1, :), X_init_pair_wc_h(2, :), X_init_pair_wc_h(3, :), ".");
     hold on;
     xlabel('x'); ylabel('y'); zlabel('z');
     title('Filtered 3D Points');
-    xlim([-20, 20]);
-    ylim([-20, 20]);
-    zlim([-20, 20]);
     hold off;
 end
 
@@ -283,15 +278,6 @@ for n = 1:N
     % Step 1: Establish correspondences using descriptor matching
     [matches_2d_3d, ~] = vl_ubcmatch(desc_X_init_pair, desc_im{n});
 
-    % unique_indices = unique(matches_2d_3d(2, :));
-    % disp(['Unique 3D Points: ', num2str(length(unique_indices))]);
-    % disp(['Total Matches: ', num2str(size(matches_2d_3d, 2))]);
-    % info("Percentage of unique matches : %.2f%%\n:  ", 100 * length(unique_indices) / size(matches_2d_3d, 2));
-
-
-    % [~, ia] = unique(matches_2d_3d(2, :), 'stable');
-    % filtered_matches = matches_2d_3d(:, ia);
-
     % Step 2: Extract 2D points and convert to homogeneous coordinates
     xA = feat_im{n}(1:2, matches_2d_3d(2, :));
 
@@ -309,19 +295,13 @@ for n = 1:N
     disp(det(R_abs_i{n}))
 
     % Estimate T using Robust RANSAC + DLT
-    %TODO: should we prodive the initial as zero ? zeros(3, 1)
     T_best{n} = estimate_T_robust(x1_h_n, Xs_h, R_abs_i{n}, translation_threshold);
-
-
-    % Normalize it to avoid scale issues
-    % T_best{n+1} = T_best{n+1} / norm(T_best{n+1});
 end
 
 %%
 % disp("Step 5: Plot the cameras")
 
 info("Step 5: Plot the cameras: \n:  ");
-
 
 P_all = cell(1,N);
 
@@ -348,66 +328,74 @@ info("Step 6: Triangulate points for all pairs (i, i + 1) and visualize 3D point
 
 X_all = [];  % To store all 3D points
 
-for n=1:N-1
+% Generate a colormap with N-1 distinct colors
+colormap = lines(N-1);
 
+% Initialize a cell array to store 3D points and colors
+points_with_colors = cell(N-1, 1);
+
+for n = 1:N-1
     % Compute the matches
-    matches = vl_ubcmatch(desc_im{n},desc_im{n+1});
-
+    % matches = vl_ubcmatch(desc_im{n}, desc_im{n+1});
+    
     % Get the 2D points correspondences on each images' pair
-    x1 = feat_im{n}(1:2, matches(1 ,:));
-    x2 = feat_im{n+1}(1:2 , matches(2 ,:));
+    x1 = feat_im{n}(1:2, matches_im{n}(1, :));
+    x2 = feat_im{n+1}(1:2, matches_im{n}(2, :));
 
-    % Convert the vectors to be homogenous for this pair of images
-    % vectors with dim as
-    % 3 x N; 
-    % N-> Number of the points
-    x1_h = toHomogeneous(x1); 
+    % Convert the vectors to homogeneous for this pair of images
+    x1_h = toHomogeneous(x1);
     x2_h = toHomogeneous(x2);
-    
-    x1_h_n = K\x1_h;
-    x2_h_n = K\x2_h;
-    
-    % Get the estimate_E_robust
+
+    % Normalize the points
+    x1_h_n = K \ x1_h;
+    x2_h_n = K \ x2_h;
+
+    % Estimate the Essential Matrix and get inliers
     [~, indices] = estimate_E_robust(x1_h_n, x2_h_n, epipolar_threshold);
-    
-       
-    % Triangulate points using relative pose
-    
-    x1_h_n_in = x1_h_n(:,indices);
-    x2_h_n_in = x2_h_n(:,indices);
 
-    % Triangulate the 3D points using the cameras and the 2D points
+    % Keep only inliers
+    x1_h_n_in = x1_h_n(:, indices);
+    x2_h_n_in = x2_h_n(:, indices);
 
-    X = triangulate_3D_point_DLT(x1_h_n_in, x2_h_n_in, P_all{n},  P_all{n+1});
-    
-    % convert to world cordinates
-   
-    % t = P_all{init_pair(1)}(:, 4);
-    % R_init = P_all{init_pair(1)}(:, 1:3);
-    % X0 = R_init' * (X(1:3,:)-t);
+    % Triangulate the 3D points using cameras and the 2D points
+    X = triangulate_3D_point_DLT(x1_h_n_in, x2_h_n_in, P_all{n}, P_all{n+1});
 
-    X_all = [X_all, X];
+    % Keep good points
+    X = keep_good_points(points_in_front(X));
 
+    % Save points and corresponding color in the cell array
+    points_with_colors{n} = struct('points', X, 'color', colormap(n, :));
 end
 
+%%
+% Visualize all points with their colors
 
+% Visualize all points with their colors
 figure();
-% Plot 3D points
+for n = 1:N-1
+    % Extract points and color
+    X = points_with_colors{n}.points;
+    color = points_with_colors{n}.color;
 
-X_all = removePointsExcessivelyFarAway(X_all);
+    % Plot the points with the corresponding color
+    plot3(X(1, :), X(2, :), X(3, :), ".", 'Color',color);
+    hold on;
+end
 
-plot3(X_all(1, :), X_all(2, :), X_all(3, :), '.', 'MarkerSize',3);
-hold on;
-   % % Plot cameras
+% Plot cameras
 plotcams(P_all_un);
 
 % Labels and axes
-xlabel('X'); ylabel('Y'); zlabel('Z');
-title(sprintf('3D Points and Cameras before refinment - All points', i));
-
+xlabel('X');
+ylabel('Y');
+zlabel('Z');
+title('3D Points and Cameras - All Cameras');
 axis equal;
-grid on;
+grid off;
 hold off;
+
+% Save the structured data
+save('points_with_colors.mat', 'points_with_colors');
 
 % Save the required data
 filename = sprintf('sfm_data_%d.mat', dataset_num);
@@ -417,7 +405,7 @@ saveas(gcf, imagename);  % Save as PNG
 
 
 %% Feature Extraction Function %%
-function [x1,x2, desc_X, fA, dA, fB, dB] = feature_extraction(im1,im2)
+function [x1,x2, desc_X, fA, dA, fB, dB, matches] = feature_extraction(im1,im2)
     % FEATURE_EXTRACTION - Extracts keypoints, descriptors, and matches between two images.
     %
     % Inputs:
@@ -750,8 +738,6 @@ end
 % Function: Robust Translation Estimation
 function T_best = estimate_T_robust(xs, Xs, R, inlier_threshold)
 
-    % T_init
-    T_init = zeros(3,1);
 
     % Initialization
     max_inliers = 0;
@@ -789,11 +775,9 @@ function T_best = estimate_T_robust(xs, Xs, R, inlier_threshold)
 
 
     % Refine with inliers
-    if max_inliers > 0
-        T_best = T_best;
-    else
+    if max_inliers == 0
         warning('No inliers found. Returning initial translation.');
-        T_best = T_init;
+        T_best = zeros(3,1);
     end
 
     errors = compute_reprojection_errors(xs, Xs, R, T_best);
@@ -1050,11 +1034,11 @@ function plotcams(P)
     hold on;
     
 
-    %Label all cameras
-    for i = 1:length(P)
-        label = sprintf('Camera %d', i);
-        text(c(1,i), c(2,i), c(3,i), label, 'FontSize', 1, 'Color', 'b');
-    end
+    % %Label all cameras
+    % for i = 1:length(P)
+    %     label = sprintf('Camera %d', i);
+    %     text(c(1,i), c(2,i), c(3,i), label, 'FontSize', 1, 'Color', 'b');
+    % end
     
     % Enhance the plot for clarity
     xlabel('X');
@@ -1081,7 +1065,6 @@ function v_h = toHomogeneous(v)
 % Example:
 %   v = [1; 2; 3]; % 3D point
 %   v_h = toHomogeneous(v); % Convert to homogeneous -> [1; 2; 3; 1]
-%
 
 % Validate input
 if nargin < 1
@@ -1242,17 +1225,20 @@ end
 end
 
 %%
-function X_clean = removePointsExcessivelyFarAway(X_dirty)
+
+function X_front= points_in_front(X_points)
     % remove points behind the camera
-    X_in_front = X_dirty(:,find(X_dirty(3,:)>0));
+    X_front = X_points(:,X_points(3,:)>0);
+end 
 
+
+function X_good = keep_good_points(X_front)
     % remove points far away from center of gravity
-    cent = mean(X_in_front(1:3,:), 2);
-    dist = sqrt(sum((X_in_front(1:3,:) - cent).^2, 1));
-    threshold = 4 * quantile(dist, 0.9);
-    ind_clean = dist < threshold;
-    X_clean = X_in_front(:, ind_clean);
-
+    center_points = mean(X_front(1:3,:), 2);
+    distance_from_center = sqrt(sum((X_front(1:3,:) - center_points).^2, 1));
+    threshold = 4 * quantile(distance_from_center, 0.9);
+    ind_clean = distance_from_center < threshold;
+    X_good = X_front(:, ind_clean);
 end
 
 %%
@@ -1260,25 +1246,9 @@ function P_un = CalibratedToUncalibrated(P_ca, K)
 
 N = length(P_ca);
 
+P_un = cell(1,N);
 for i=1:N
     P_un{i} = K * P_ca{i};
 end
 
 end
-
-
-% function T = compute_translation(xs, Xs, R)    
-%     x1 = xs(:,1);
-%     x2 = xs(:,2);
-% 
-%     X1 = Xs(:,1);
-%     X2 = Xs(:,2);
-% 
-%     x1_cross = [0, -x1(3), x1(2); x1(3), 0, -x1(1); -x1(2), x1(1), 0];
-%     x2_cross = [0, -x2(3), x2(2); x2(3), 0, -x2(1); -x2(2), x2(1), 0];
-% 
-%     M = [x1_cross*R*X1(1:3), x1_cross; x2_cross*R*X2(1:3), x2_cross];
-% 
-%     [~, ~, V] = svd(M);
-%     T = V(2:end, end) ./ V(1,4);
-% end
