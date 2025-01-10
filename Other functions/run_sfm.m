@@ -1,6 +1,7 @@
 
 % function [] = run_sfm(dataset_num, varargin)
 % RUN_SFM - Structure from Motion Pipeline
+%% 
 % Inputs:
 %   dataset_num - (Required) Dataset number to process.
 %   varargin    - (Optional) Key-value pairs:
@@ -9,7 +10,7 @@
 %       relative 3D points of the initial pair.
 %
 % Example Usage:
-%   run_sfm(2) % Default, no plot
+%   run_sfm(2) % Default, no plot++
 %   run_sfm(2, 'plot_initial_rel_3D', true) % Enable plotting for all
 %   relative pairs
 %   run_sfm(2, 'plot_initial_rel_3D_pair', true) % Enable plotting for the
@@ -28,7 +29,7 @@
 % plot_initial_rel_3D = p.Results.plot_initial_rel_3D; % Optional flag
 % plot_initial_rel_3D_pair = p.Results.plot_initial_rel_3D_pair; % Optional flag
 close all; clear; clc
-dataset_num = 1;
+dataset_num = 2;
 plot_initial_rel_3D = true; 
 plot_initial_rel_3D_pair = true;
 
@@ -36,7 +37,8 @@ global enableInfo;
 global info_level;
 
 enableInfo = true; % Enable or disable info globally
-info_level = 2;
+info_level = 1;
+%% 
 
 % reset and load data
 % clc; close all;
@@ -111,39 +113,47 @@ for n=1:N-1
     %%% Estimate the Essential Matrix using RANSAC %%%
   
     % Define the pixel threhold
-    eps = 3 * 2 / (K(1,1) + K(2,2)); % Normalize threshold
+    epipolar_threshold = pixel_threshold / K(1,1); % Normalize threshold
 
     % e.g: 0.000420430520853354
 
+    x1_h_n = K\x1_h;
+    x2_h_n = K\x2_h;
+
     % Estimate Essential Matrix robustly using RANSAC
-    [E_ransac, indices] = estimate_E_robust(x1_h, x2_h, eps, K);
+    [E_ransac, indices] = estimate_E_robust(x1_h_n, x2_h_n, epipolar_threshold);
 
     % Store inlier indices for later refinement
     inliers_indices{n} = indices;
 
     % Triangulate the points 3D points using the relative pose and inliers
     % and Check for Cheirality Condition to get P2
+    
+    x1_h_n_in = x1_h_n(:,inliers_indices{n});
+    x2_h_n_in = x2_h_n(:,inliers_indices{n});
+    
+    [X,P_pair] = Cheirality_triangulate(x1_h_n_in,x2_h_n_in,E_ransac);
 
-    [X,P_pair] = Cheirality_triangulate(x1_h,x2_h, indices,K,E_ransac);
+    validate_camera(P_pair{1})
 
-    validate_camera(P_pair{1}, K)
+    validate_camera(P_pair{2})
 
-    validate_camera(P_pair{2}, K)
-
-
+    
     % Save relative rotation
 
-    R_rel{n} = K\P_pair{2}(1:3, 1:3);
+    R_rel{n} = P_pair{2}(1:3, 1:3);
 
 
     if plot_initial_rel_3D
         % Optional: Step 5: Visualization
         figure;
 
-        plot3(X(1, :), X(2, :), X(3, :), '.', 'MarkerSize', 10); % Plot 3D points
+        plot3(X(1, :), X(2, :), X(3, :), '.', 'MarkerSize', 5); % Plot 3D points
 
         hold on;
-        plotcams(P_pair); % Plot cameras
+
+        P_pair_un = CalibratedToUncalibrated(P_pair, K);
+        plotcams(P_pair_un); % Plot cameras
         xlabel('x'); ylabel('y'); zlabel('z');
         title('Relative plot of 3D points');
         axis equal;  % Equal scaling for axes
@@ -159,15 +169,12 @@ end
 info("Step 2: Upgrade to Absolute Rotations")
 
 
-% Get the total number of relative rotations
-num_rel_rotations = length(R_rel); % Total relative rotations (N-1)
-
 % Initialize cell array for storing absolute rotations
 R_abs_i = cell(1, N);            % Absolute rotations for N cameras
 R_abs_i{1} = eye(3);             % First camera has identity rotation (reference)
 
 % Compute absolute rotations from relative rotations
-for k = 1:num_rel_rotations
+for k = 1:N-1
     % Compute absolute rotation by chaining relative rotations
     R_abs_i{k+1} = R_rel{k} * R_abs_i{k}; % Accumulate rotations
 
@@ -188,7 +195,7 @@ info("\nVerifying Orthogonality of Rotations:\n");
 
 for k = 1:N 
     error_orthogonality = norm(R_abs_i{k} * R_abs_i{k}' - eye(3)); % Should be close to 0 using Euclidean norm
-    info("Camera %d Orthogonality Error: %.6f\n", k, error_orthogonality);
+    info("Camera %d Orthogonality Error: %.6f\n", 1,k, error_orthogonality);
 end
 
 %% Step 3: Reconstruct initial 3D points from initial image pair
@@ -213,57 +220,50 @@ im2 = imread(img_names{init_pair(2)});
 x1_h = toHomogeneous(x1); 
 x2_h = toHomogeneous(x2);
 
-% Step: Estimate E robust using RANSAC
-
-% Define the pixel threhold
-eps = pixel_threshold * 2 / (K(1,1) + K(2,2)); % Normalize threshold
+x1_h_n = K\x1_h;
+x2_h_n = K\x2_h;
 
 % Get the estimate_E_robust
-[E_ransac, indices] = estimate_E_robust(x1_h, x2_h, eps, K);
+[E_ransac, indices] = estimate_E_robust(x1_h_n, x2_h_n, epipolar_threshold);
 
-% Save descriptors for future use "Only inliers"
-desc_X_init_pair = desc_X(:,indices);
+
 % save('desc_X.mat', 'desc_X'); % Save to a mat file
 
 % Triangulate points using relative pose
 
-[X_init_pair,P_init_pair] = Cheirality_triangulate(x1_h,x2_h, indices,K,E_ransac);
+x1_h_n_in = x1_h_n(:,indices);
+x2_h_n_in = x2_h_n(:,indices);
 
-validate_camera(P_init_pair{1}, K)
+[X_init_pair,P_init_pair] = Cheirality_triangulate(x1_h_n_in,x2_h_n_in,E_ransac);
 
-validate_camera(P_init_pair{2}, K)
+validate_camera(P_init_pair{1})
 
+validate_camera(P_init_pair{2})
 
-% X_0: Triangulated 3D points (4xN homogeneous coordinates)
-
-% % Rotate the initial 3D points to the world coordinate using the first
-% % absolute roation matrix in the initial pair
-% X_wc = R_abs_i{init_pair(1)}' * X_0(1:3,:);
+% X_init_pair = removePointsExcessivelyFarAway(X_init_pair);
 % 
-% % Step 1: Compute Center of Gravity
-% X_mean = mean(X_wc, 2); % 3x1 mean position
 % 
-% % Step 2: Compute Distances
-% distances = vecnorm(X_wc - X_mean, 2, 1); % Euclidean distances
+% new_indices = find(indices < length(X_init_pair));
 % 
-% % Step 3: Compute Threshold
-% q90 = quantile(distances, 0.9); % 90th percentile
-% threshold = 5 * q90;           % 5 times the 90% quantile
-% 
-% % Step 4: Filter Outliers
-% inliers = distances <= threshold;           % Logical indices for inliers
-% X_wc_filtered = X_wc(:, inliers);           % Filtered 3D points
+% % Save descriptors for future use "Only inliers"
+desc_X_init_pair = desc_X(:,indices);
+
+
+% Move the 3D pionts to the 3D world coordinate 
+X_init_pair_wc = R_abs_i{init_pair(1)}' * X_init_pair(1:3, :);
+X_init_pair_wc_h = toHomogeneous(X_init_pair_wc);
+
 
 if plot_initial_rel_3D_pair
     % Step 5: Visualization for initial pair
     figure;
-    plot3(X_init_pair(1, :), X_init_pair(2, :), X_init_pair(3, :), '.', 'MarkerSize', 10);
+    plot3(X_init_pair_wc_h(1, :), X_init_pair_wc_h(2, :), X_init_pair_wc_h(3, :), ".");
     hold on;
-    plotcams(P_init_pair); % Plot cameras
     xlabel('x'); ylabel('y'); zlabel('z');
-    title('Filtered 3D Points and Cameras');
-    axis equal;
-    grid on;
+    title('Filtered 3D Points');
+    xlim([-20, 20]);
+    ylim([-20, 20]);
+    zlim([-20, 20]);
     hold off;
 end
 
@@ -277,40 +277,30 @@ info("Step 4: T robust estimation:\n");
 % Number of images
 % Initialize translation estimates
 T_best = cell(1, N);
-T_best{1} = zeros(3, 1);
+% T_best{1} = zeros(3, 1);
 
-for n = 1:N-1
+for n = 1:N
     % Step 1: Establish correspondences using descriptor matching
-    [matches_2d_3d, ~] = vl_ubcmatch(desc_im{n}, desc_X_init_pair);
+    [matches_2d_3d, ~] = vl_ubcmatch(desc_X_init_pair, desc_im{n});
 
-    if isempty(matches_2d_3d)
-    warning('No matches found for image %d.', n);
-    continue; % Skip this iteration if no matches
-    end
-
-    unique_indices = unique(matches_2d_3d(2, :));
+    % unique_indices = unique(matches_2d_3d(2, :));
+    % disp(['Unique 3D Points: ', num2str(length(unique_indices))]);
+    % disp(['Total Matches: ', num2str(size(matches_2d_3d, 2))]);
+    % info("Percentage of unique matches : %.2f%%\n:  ", 100 * length(unique_indices) / size(matches_2d_3d, 2));
 
 
-    disp(['Unique 3D Points: ', num2str(length(unique_indices))]);
-    disp(['Total Matches: ', num2str(size(matches_2d_3d, 2))]);
-
-    % % fprintf('Percentage of unique matches : %.2f%%\n:  ', 100 * length(unique_indices) / size(matches_2d_3d, 2));
-    
-    info("Percentage of unique matches : %.2f%%\n:  ", 100 * length(unique_indices) / size(matches_2d_3d, 2));
-
-
-    [~, ia] = unique(matches_2d_3d(2, :), 'stable');
-    filtered_matches = matches_2d_3d(:, ia);
+    % [~, ia] = unique(matches_2d_3d(2, :), 'stable');
+    % filtered_matches = matches_2d_3d(:, ia);
 
     % Step 2: Extract 2D points and convert to homogeneous coordinates
-    xA = feat_im{n}(1:2, filtered_matches(1, :));
+    xA = feat_im{n}(1:2, matches_2d_3d(2, :));
 
     x1_h = toHomogeneous(xA);
 
     x1_h_n = K \ x1_h; % Normalize 2D points
 
     % Step 3: Extract 3D points and convert to homogeneous
-    Xs_h = X_init_pair(:, filtered_matches(2, :)); % Use pre-computed 3D points
+    Xs_h = X_init_pair_wc_h(:, matches_2d_3d(1, :)); % Use pre-computed 3D points
     
     % Step 4: Robust estimation of translation
     translation_threshold = 3 * pixel_threshold / K(1, 1);
@@ -320,7 +310,7 @@ for n = 1:N-1
 
     % Estimate T using Robust RANSAC + DLT
     %TODO: should we prodive the initial as zero ? zeros(3, 1)
-    T_best{n+1} = estimate_T_robust(x1_h_n, Xs_h, R_abs_i{n}, translation_threshold, zeros(3, 1));
+    T_best{n} = estimate_T_robust(x1_h_n, Xs_h, R_abs_i{n}, translation_threshold);
 
 
     % Normalize it to avoid scale issues
@@ -336,18 +326,21 @@ info("Step 5: Plot the cameras: \n:  ");
 P_all = cell(1,N);
 
 for i=1:N
-    P_all{i} = K * [R_abs_i{i} T_best{i}];
+    P_all{i} = [R_abs_i{i} T_best{i}]; 
 end
 
 figure();
-plotcams(P_all)
+
+P_all_un = CalibratedToUncalibrated(P_all, K);
+plotcams(P_all_un);
+
 title('Camera Poses Visualization');
 
 % disp("Cameras plotted successfully!");
-info("Cameras plotted successfully!: \n:  ", 100 * length(unique_indices) / size(matches_2d_3d, 2));
-
+% info("Cameras plotted successfully!: \n:  ", 100 * length(unique_indices) / size(matches_2d_3d, 2));
 
 %%
+
 % Step 6: Triangulate points for all pairs (i, i + 1) and visualize 3D points + cameras
 
 % disp("% Step 6: Triangulate points for all pairs (i, i + 1) and visualize 3D points + cameras")
@@ -355,60 +348,81 @@ info("Step 6: Triangulate points for all pairs (i, i + 1) and visualize 3D point
 
 X_all = [];  % To store all 3D points
 
-for i=1:N-1
+% Generate a colormap with N-1 distinct colors
+colormap = lines(N-1);
 
+% Initialize a cell array to store 3D points and colors
+points_with_colors = cell(N-1, 1);
+
+for n = 1:N-1
     % Compute the matches
-    matches = vl_ubcmatch(desc_im{n},desc_im{n+1});
+    matches = vl_ubcmatch(desc_im{n}, desc_im{n+1});
 
     % Get the 2D points correspondences on each images' pair
-    xA = feat_im{n}(1:2, matches(1 ,:));
-    xB = feat_im{n+1}(1:2 , matches(2 ,:));
+    x1 = feat_im{n}(1:2, matches(1, :));
+    x2 = feat_im{n+1}(1:2, matches(2, :));
 
-    % Convert the vectors to be homogenous for this pair of images
-    % Add a homogenous dimension to the points
-    % vectors with dim as
-    % 3 x N; 
-    % N-> Number of the points
-    x1_h = toHomogeneous(xA); 
-    x2_h = toHomogeneous(xB);
+    % Convert the vectors to homogeneous for this pair of images
+    x1_h = toHomogeneous(x1);
+    x2_h = toHomogeneous(x2);
 
-
-    % Keep only the inliers
-    x1_h_in = x1_h(:, inliers_indices{n});
-    x2_h_in = x2_h(:, inliers_indices{n});
-
-    % Triangulate the 3D points using the cameras and the 2D points
-
-    X = triangulate_3D_point_DLT(x1_h_in, x2_h_in, P_all{i},  P_all{i+1});
-    
-    % Levenberg Marquardt Method
-    
     % Normalize the points
-    x1_h_in = x1_h(:, inliers_indices{n});
-    x2_h_in = x2_h(:, inliers_indices{n});
+    x1_h_n = K \ x1_h;
+    x2_h_n = K \ x2_h;
 
-    figure();
-    % Plot 3D points
-    plot3(X(1, :), X(2, :), X(3, :), '.', 'MarkerSize', 10);
-    hold on;
+    % Estimate the Essential Matrix and get inliers
+    [~, indices] = estimate_E_robust(x1_h_n, x2_h_n, epipolar_threshold);
 
-    % % Plot cameras
-    plotcams(P_all);
+    % Keep only inliers
+    x1_h_n_in = x1_h_n(:, indices);
+    x2_h_n_in = x2_h_n(:, indices);
 
-    % Labels and axes
-    xlabel('X'); ylabel('Y'); zlabel('Z');
-    title(sprintf('3D Points and Cameras before refinment - Iteration %d', i));
-    
-    axis equal;
-    grid on;
-    hold off;
+    % Triangulate the 3D points using cameras and the 2D points
+    X = triangulate_3D_point_DLT(x1_h_n_in, x2_h_n_in, P_all{n}, P_all{n+1});
 
+    % Remove excessively far away points for clarity
+    X = removePointsExcessivelyFarAway(X);
 
-
+    % Save points and corresponding color in the cell array
+    points_with_colors{n} = struct('points', X, 'color', colormap(n, :));
 end
 
 %%
+% Visualize all points with their colors
 
+% Visualize all points with their colors
+figure();
+for n = 1:N-1
+    % Extract points and color
+    X = points_with_colors{n}.points;
+    color = points_with_colors{n}.color;
+
+    % Plot the points with the corresponding color
+    plot3(X(1, :), X(2, :), X(3, :), ".", 'Color',color);
+    hold on;
+end
+
+
+% Plot cameras
+plotcams(P_all_un);
+
+% Labels and axes
+xlabel('X');
+ylabel('Y');
+zlabel('Z');
+title('3D Points and Cameras - All Cameras');
+axis equal;
+grid off;
+hold off;
+
+% Save the structured data
+save('points_with_colors.mat', 'points_with_colors');
+
+% Save the required data
+filename = sprintf('sfm_data_%d.mat', dataset_num);
+save(filename, 'X', 'P_all', 'R_abs_i', 'T_best', 'inliers_indices');
+imagename = sprintf('dataset_image_%d.png', dataset_num);
+saveas(gcf, imagename);  % Save as PNG
 
 
 %% Feature Extraction Function %%
@@ -430,8 +444,8 @@ function [x1,x2, desc_X, fA, dA, fB, dB] = feature_extraction(im1,im2)
         % Extract the features using SIFT
         % 1 specifies a threshold for rejecting low-contrast keypoints detected by SIFT.
 
-        [fA, dA] = vl_sift(single(rgb2gray(im1)),'PeakThresh', 1);
-        [fB, dB] = vl_sift(single(rgb2gray(im2)),'PeakThresh', 1);
+        [fA, dA] = vl_sift(single(rgb2gray(im1)),'PeakThresh', 2);
+        [fB, dB] = vl_sift(single(rgb2gray(im2)),'PeakThresh', 2);
         
         % Compute the matches
         matches = vl_ubcmatch(dA, dB);
@@ -449,7 +463,7 @@ end
 
 %% estimate_E_robust
 
-function [E_best, indices] = estimate_E_robust(x1, x2, eps, K)
+function [E_best, indices] = estimate_E_robust(x1_h_n, x2_h_n, epipolar_threshold)
     % Robustly estimates the essential matrix E using RANSAC.
 
     % x1: 3xN , N: Number of points
@@ -457,13 +471,11 @@ function [E_best, indices] = estimate_E_robust(x1, x2, eps, K)
     
     global enableInfo;
 
-    % Normalize points
-    x1_h_n = K\x1;
-    x2_h_n = K\x2;
 
     % RANSAC parameters
     max_iterations = 10000;
     num_points = size(x1_h_n, 2);
+
     best_inlier_count = 0;
     E_best = [];
     inliers = false(1, num_points);
@@ -491,7 +503,7 @@ function [E_best, indices] = estimate_E_robust(x1, x2, eps, K)
         errors = (distances_l2_x2.^2 + distances_l1_x1.^2) / 2;
 
         % Determine inliers
-        inliers_current = errors < eps^2;
+        inliers_current = errors < epipolar_threshold^2;
         num_inliers = sum(inliers_current);
 
         % Update best model
@@ -558,9 +570,9 @@ function E = enforce_essential(E_approx)
 % Apply the SVD on E approximate 
 [U,~,V] = svd( E_approx );
 
-if det(U*V') < 0 
-    V = -V; 
-end
+% if det(U*V') < 0 
+%     V = -V; 
+% end
 
 % Check the rank of F
 rank_E_approx = rank(E_approx);
@@ -610,7 +622,7 @@ function distances = compute_epipolar_errors(F, x1_h_n, x2_h_n)
 end
 %%
 
-function [X_best, P] = Cheirality_triangulate(x1, x2, inliers, K, E_ransac)
+function [X_best, P] = Cheirality_triangulate(x1_h_n_in, x2_h_n_in, E_ransac)
 % CHEIRALITY_TRIANGULATE - Triangulate 3D points and resolve E ambiguity
 % Inputs:
 %   x1, x2      - 2D unnormalized homogeneous points in images 1 and 2 (3xN)
@@ -621,10 +633,8 @@ function [X_best, P] = Cheirality_triangulate(x1, x2, inliers, K, E_ransac)
 %   X_best      - Triangulated 3D points (4xN homogeneous coordinates)
 %   P           - Correct camera projection matrices {P1, P2}
 
-    % Step 1: Select inlier points for triangulation
-    x1_inliers = x1(:, inliers);
-    x2_inliers = x2(:, inliers);
-
+    % Use the selected inlier points for triangulation
+    
     % Initialize best parameters
     P2_correct_ind = 0; % Index for correct P2
     max_points_1 = 0;   % Maximum valid points satisfying chirality
@@ -632,7 +642,7 @@ function [X_best, P] = Cheirality_triangulate(x1, x2, inliers, K, E_ransac)
 
     % Step 2: Define camera matrices
     % First camera at the origin (canonical form)
-    P1 = K * [eye(3), zeros(3, 1)];
+    P1 = [eye(3), zeros(3, 1)];
 
     % Step 3: Decompose Essential Matrix (E) to get R, t candidates
     [U, ~, V] = svd(E_ransac);
@@ -640,7 +650,8 @@ function [X_best, P] = Cheirality_triangulate(x1, x2, inliers, K, E_ransac)
 
     % Four possible solutions for [R, t]
     R1 = U * W * V';
-    R2 = U * W' * V';
+    R2 = U * W.'*V';
+    
     t = U(:, 3);
 
     % Ensure proper rotations (determinant = +1)
@@ -649,10 +660,10 @@ function [X_best, P] = Cheirality_triangulate(x1, x2, inliers, K, E_ransac)
 
     % Step 4: Generate P2 candidates (Four cases)
     P2_candidates = {
-        K * [R1, t],
-        K * [R1, -t],
-        K * [R2, t],
-        K * [R2, -t]
+        [R1, t],
+        [R1, -t],
+        [R2, t],
+        [R2, -t]
     };
 
     % Step 5: Evaluate each P2 candidate based on chirality condition
@@ -660,23 +671,26 @@ function [X_best, P] = Cheirality_triangulate(x1, x2, inliers, K, E_ransac)
         P2 = P2_candidates{i};
 
         % Triangulate 3D points using current P2
-        X = triangulate_3D_point_DLT(x1_inliers, x2_inliers, P1, P2);
+        X = triangulate_3D_point_DLT(x1_h_n_in, x2_h_n_in, P1, P2);
 
         % Project back to both views
         x1_proj = P1 * X;
         x2_proj = P2 * X;
 
         % Count points in front of both cameras (chirality check)
-        cond = sum((x1_proj(3,:) > 0) & (x2_proj(3,:) > 0));
+        valid_points = (x1_proj(3,:) > 0) & (x2_proj(3,:) > 0);
+        num_valid = sum(valid_points);
+
 
         % Keep the candidate with the most valid points
-        if cond > max_points_1
-            max_points_1 = cond;
+        if num_valid > max_points_1
+            max_points_1 = num_valid;
             P2_correct_ind = i;
-            X_best = X; % Store the best 3D points
+            X_best = X; % (:, valid_points); % Store the best 3D points % Filter valid 3D points
         end
     end
-
+    
+ 
     % Step 6: Final output - Correct projection matrices
     P{1} = P1;
     P{2} = P2_candidates{P2_correct_ind};
@@ -685,11 +699,11 @@ function [X_best, P] = Cheirality_triangulate(x1, x2, inliers, K, E_ransac)
 
     % Print the selected solution
     fprintf('Selected P2 Index: %d\n', P2_correct_ind);
-    fprintf('Number of Valid Points: %d out of %d\n', max_points_1, length(inliers));
+    fprintf('Number of Valid Points: %d out of %d\n', max_points_1, length(x1_h_n_in));
 
     % Optional: Compute reprojection error
-    err1 = compute_reprojection_error_P(P{1}, X_best, x1_inliers);
-    err2 = compute_reprojection_error_P(P{2}, X_best, x2_inliers);
+    err1 = compute_reprojection_error_P(P{1}, X_best, x1_h_n_in); % (:, valid_points));
+    err2 = compute_reprojection_error_P(P{2}, X_best, x2_h_n_in); % (:, valid_points));
     fprintf('Mean Reprojection Error: %.4f (Image 1), %.4f (Image 2)\n', mean(err1), mean(err2));
 
     fprintf('\n--- Cheirality_triangulate Validation End ---\n');
@@ -743,7 +757,10 @@ end
 %%
 
 % Function: Robust Translation Estimation
-function T_best = estimate_T_robust(xs, Xs, R, inlier_threshold, T_init)
+function T_best = estimate_T_robust(xs, Xs, R, inlier_threshold)
+
+    % T_init
+    T_init = zeros(3,1);
 
     % Initialization
     max_inliers = 0;
@@ -758,13 +775,15 @@ function T_best = estimate_T_robust(xs, Xs, R, inlier_threshold, T_init)
 
         % Estimate candidate T using DLT
         T_candidate = estimate_translation_DLT(xs_sample, Xs_sample, R);
+        
+        %T_candidate = compute_translation(xs_sample, Xs_sample, R);
 
         % Compute reprojection errors
         % % errors = compute_reprojection_error_P([R,T_candidate], Xs, xs);
         errors = compute_reprojection_errors(xs, Xs, R, T_candidate);
 
         % Count inliers
-        inliers_candidate = errors.^2 < inlier_threshold.^2;
+        inliers_candidate = errors < inlier_threshold;
         num_inliers = sum(inliers_candidate);
 
         % Update best model
@@ -797,59 +816,36 @@ function T_best = estimate_T_robust(xs, Xs, R, inlier_threshold, T_init)
 end
 
 
-% Function: Translation Estimation using DLT
-function T = estimate_translation_DLT(x, X, R)
+
+
+function T = estimate_translation_DLT(xs, Xs, R)
     % Inputs:
-    % x - 2D normalized points in homogeneous coordinates (3xN)
-    % X - 3D points in homogeneous coordinates (4xN)
-    % R - Rotation matrix (3x3)
+    % xs - 2D points in homogeneous coordinates (3xN)
+    % Xs - 3D points in homogeneous coordinates (4xN)
+    % R  - Rotation matrix (3x3)
 
-    % Outputs:
-    % T - Estimated translation vector (3x1)
+    % Extract the first two points
+    x1 = xs(:,1);
+    x2 = xs(:,2);
+    X1 = Xs(:,1);
+    X2 = Xs(:,2);
 
-    % Number of points
-    N = size(x, 2);
+    % Construct matrix directly using skew-symmetric form
+    M = [
+        skew(x1) * R * X1(1:3), skew(x1);
+        skew(x2) * R * X2(1:3), skew(x2)
+    ];
 
-    % Initialize matrices A and b
-    A = [];
-    b = [];
+    % Solve using SVD
+    [~, ~, V] = svd(M);
+    T = V(2:end, end) ./ V(1,4); % Extract translation vector (last column, rows 4-6)
+end
 
-    % Loop through each point
-    for i = 1:N
-        % Extract the 2D point (x) and 3D point (X)
-        xi = x(:, i);       % 2D point in homogeneous coordinates
-        Xi = X(:, i);       % 3D point in homogeneous coordinates
-
-        % Create the linear system based on the equations in the image
-        A_i = [
-            1, 0, 0, -xi(1);   % First row
-            0, 1, 0, -xi(2);   % Second row
-            0, 0, 1, -xi(3)    % Third row
-        ];
-
-        % Append to the full matrix A
-        A = [A; A_i];
-
-        % Compute b using the rotation matrix R
-        b_i = -R * Xi(1:3);  % Projected 3D point
-        b = [b; b_i];
-    end
-
-    % Solve the linear system A * T = b using least squares
-    T_lambda = A \ b;
-
-    % Extract translation vector T (first 3 elements)
-    T = T_lambda(1:3);
-
-    % Compute residual error
-    % residual = norm(A * T_lambda - b); % ||A * T_lambda - b||
-    % disp('Residual Error:');
-    % disp(residual);
-
-    % Flip sign if necessary based on direction consistency
-    if dot(T, mean(X(1:3, :), 2)) < 0
-        T = -T;  % Flip the translation vector
-    end
+function S = skew(x)
+    % Constructs the skew-symmetric matrix for cross product
+    S = [  0   -x(3)  x(2);
+          x(3)   0   -x(1);
+         -x(2)  x(1)   0 ];
 end
 
 
@@ -1170,7 +1166,7 @@ function validate_E(E)
 end
 
 %%
-function validate_camera(P, K)
+function validate_camera(P)
 % VALIDATE_CAMERA - Validates the projection matrix of a camera
 %
 % Inputs:
@@ -1185,8 +1181,6 @@ function validate_camera(P, K)
     fprintf('\n--- validate_camera Validation Start ---\n');
 
     
-    P = K\P;
-
     % --- Extract Rotation (R) and Translation (T) ---
     R = P(1:3, 1:3); % Rotation matrix
     T = P(1:3, 4);   % Translation vector
@@ -1255,3 +1249,45 @@ if enableInfo
     end
 end
 end
+
+%%
+function X_clean = removePointsExcessivelyFarAway(X_dirty)
+    % remove points behind the camera
+    X_in_front = X_dirty(:,find(X_dirty(3,:)>0));
+
+    % remove points far away from center of gravity
+    cent = mean(X_in_front(1:3,:), 2);
+    dist = sqrt(sum((X_in_front(1:3,:) - cent).^2, 1));
+    threshold = 4 * quantile(dist, 0.9);
+    ind_clean = dist < threshold;
+    X_clean = X_in_front(:, ind_clean);
+
+end
+
+%%
+function P_un = CalibratedToUncalibrated(P_ca, K)
+
+N = length(P_ca);
+
+for i=1:N
+    P_un{i} = K * P_ca{i};
+end
+
+end
+
+
+% function T = compute_translation(xs, Xs, R)    
+%     x1 = xs(:,1);
+%     x2 = xs(:,2);
+% 
+%     X1 = Xs(:,1);
+%     X2 = Xs(:,2);
+% 
+%     x1_cross = [0, -x1(3), x1(2); x1(3), 0, -x1(1); -x1(2), x1(1), 0];
+%     x2_cross = [0, -x2(3), x2(2); x2(3), 0, -x2(1); -x2(2), x2(1), 0];
+% 
+%     M = [x1_cross*R*X1(1:3), x1_cross; x2_cross*R*X2(1:3), x2_cross];
+% 
+%     [~, ~, V] = svd(M);
+%     T = V(2:end, end) ./ V(1,4);
+% end
