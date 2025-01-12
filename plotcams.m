@@ -20,11 +20,11 @@ function plotcams(P)
     hold on;
     
 
-    %Label all cameras
-    for i = 1:length(P)
-        label = sprintf('Camera %d', i);
-        text(c(1,i), c(2,i), c(3,i), label, 'FontSize', 1, 'Color', 'b');
-    end
+    % %Label all cameras
+    % for i = 1:length(P)
+    %     label = sprintf('Camera %d', i);
+    %     text(c(1,i), c(2,i), c(3,i), label, 'FontSize', 1, 'Color', 'b');
+    % end
     
     % Enhance the plot for clarity
     xlabel('X');

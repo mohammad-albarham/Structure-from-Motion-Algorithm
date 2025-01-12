@@ -89,10 +89,24 @@ function [K, img_names, init_pair, pixel_threshold] = get_dataset_info(dataset)
     focal_length_35mm = 38.0; % from the EXIF data
     init_pair = [4, 6];
     pixel_threshold = 1.0;
-  elseif dataset == 10
-    % Add your optional datasets...
+    elseif dataset == 10
+     % Biblotek Chalmers
+    img_names = {"data/10/1.jpg", "data/10/2.jpg","data/10/3.jpg"};
+    im_width = 2992; im_height = 2992;
+    focal_length_35mm = 23.0; % from the EXIF data
+    init_pair = [1, 3];
+    pixel_threshold = 1.0;
+    % Restaurangen Chalmers
+    elseif dataset == 11
+    % Triceratops model on a poster.
+    img_names = {"data/11/1.jpg", "data/11/2.jpg","data/11/3.jpg"};
+    im_width = 2992; im_height = 2992;
+    focal_length_35mm = 23.0; % from the EXIF data
+    init_pair = [1, 3];
+    pixel_threshold = 1.0;
   end
+    
+  focal_length = max(im_width, im_height) * focal_length_35mm / 35.0;
+  K = [focal_length 0 im_width/2; 0 focal_length im_height/2; 0 0 1];
 
-  focal_length = max(im_width, im_height) * focal_length_35mm / 35.0
-  K = [focal_length 0 im_width/2; 0 focal_length im_height/2; 0 0 1]
 end
