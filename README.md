@@ -54,3 +54,8 @@ Run the `run_sfm` function in MATLAB using the following syntax:
 
 ```matlab
 run_sfm(dataset_num);
+```
+---
+## Sample of the results:
+
+![image](https://github.com/user-attachments/assets/03c75c94-62bf-4293-b61b-8694f0680bed)
