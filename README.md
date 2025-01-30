@@ -1,3 +1,5 @@
+[![View Structure-from-Motion-Algorithm on File Exchange](https://www.mathworks.com/matlabcentral/images/matlab-file-exchange.svg)](https://se.mathworks.com/matlabcentral/fileexchange/179169-structure-from-motion-algorithm)
+
 # Structure from Motion (SfM) Pipeline
 
 The `run_sfm` function implements a **Structure from Motion (SfM)** pipeline for reconstructing 3D structures from image datasets. It supports multiple options for visualization, logging, and dataset control, making it suitable for educational, research, and development purposes.
